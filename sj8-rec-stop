@@ -1,0 +1,59 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Communicate with a SJCAM SJ8PRO through the TCP JSON API.
+
+  * Get camera info.
+  * Stop recording.
+
+"""
+
+import ambarella_api as A
+import logging
+
+__author__ = "Niccolo Rigacci"
+__copyright__ = "Copyright 2021 Niccolo Rigacci <niccolo@rigacci.org>"
+__license__ = "GPLv3-or-later"
+__email__ = "niccolo@rigacci.org"
+__version__ = "0.2.0"
+
+
+#--------------------------------------------------------------
+# Main program.
+#--------------------------------------------------------------
+logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s')
+# Choose logging level: NOTSET, DEBUG, INFO, WARNING, ERROR
+logging.getLogger().setLevel(logging.INFO)
+
+# Open the TCP socket and get the communication token.
+A.get_token()
+
+# Get power type and battery charge percentage.
+reply = A.get_message_reply(msg_id=A.AMBA_GET_BATTERY_LEVEL)
+if reply is None:
+    A.api_error('REPLY', 'Invalid reply for AMBA_GET_BATTERY_LEVEL')
+power_type = A.get_item('type', reply)
+battery_charge = A.get_item('param', reply, int)
+if power_type not in ('adapter', 'battery'):
+    A.api_error('POWER', 'Unknown power type: "%s"' % (power_type,))
+if battery_charge is not None:
+    A.print_big('Batt. %s%%' % (battery_charge,))
+
+# Get memory card total and free space.
+space_total = A.get_param(msg_id=A.AMBA_GET_SPACE, msg_type='total', var_type=float)[0]
+space_free = A.get_param(msg_id=A.AMBA_GET_SPACE, msg_type='free', var_type=float)[0]
+if space_free is None or space_total is None:
+    A.api_error('REPLY', 'Invalid reply for AMBA_GET_SPACE')
+else:
+    A.print_big('Card %0d%%' % ((1 - space_free / space_total) * 100,))
+
+# Stop recording.
+A.socket_send(A.make_msg(msg_id=A.AMBA_RECORD_STOP))
+reply, notify = A.reply_and_notify(msg_id=A.AMBA_RECORD_STOP, expected_notify='stop_normal_record')
+if reply is None or notify != 'stop_normal_record':
+    A.api_error(err_id='NO STOP', msg='Cannot stop recording', is_fatal=True)
+
+# Close session.
+A.close_session()
+
+A.print_big('STOP')

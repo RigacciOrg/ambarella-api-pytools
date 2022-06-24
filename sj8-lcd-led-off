@@ -1,0 +1,50 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Communicate with a SJCAM SJ8PRO through the TCP JSON API.
+
+  * Set the following settings:
+     'LCD Off Time': '30 Seconds'
+     'Front Display': 'On'
+     'Indicator lights': 'On'
+
+"""
+
+import ambarella_api as A
+import logging
+
+__author__ = "Niccolo Rigacci"
+__copyright__ = "Copyright 2021 Niccolo Rigacci <niccolo@rigacci.org>"
+__license__ = "GPLv3-or-later"
+__email__ = "niccolo@rigacci.org"
+__version__ = "0.2.0"
+
+# Camera settings to be changed.
+SET_ITEMS = {
+    'LCD Off Time': '30 Seconds',
+    'Front Display': 'Off',
+    'Indicator lights': 'Off'
+}
+
+
+#--------------------------------------------------------------
+# Main program.
+#--------------------------------------------------------------
+logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s')
+# Choose logging level: NOTSET, DEBUG, INFO, WARNING, ERROR
+logging.getLogger().setLevel(logging.INFO)
+
+# Open the TCP socket and get the communication token.
+A.get_token()
+
+# Change some camera settings.
+for key in SET_ITEMS:
+    val = SET_ITEMS[key]
+    reply = A.set_param(msg_type=key, param=val)
+    if reply is None:
+        A.api_error('SET!', 'Error setting param for "%s"' % (key,))
+
+# Close session.
+A.close_session()
+
+A.print_big('LED\nOFF')

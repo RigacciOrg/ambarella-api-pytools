@@ -1,0 +1,111 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Communicate with a SJCAM SJ8PRO through the TCP JSON API.
+
+  * Get camera info and settings.
+  * Get camera card space and battery level.
+  * Set the camera clock from system clock.
+  * Set the following settings:
+     'LCD Off Time': '30 Seconds'
+     'Front Display': 'Off'
+     'Indicator lights': 'Off'
+  * Set 'camera_mode' to 'normal_record'.
+  * Start recording.
+
+"""
+
+import ambarella_api as A
+import datetime
+import logging
+
+__author__ = "Niccolo Rigacci"
+__copyright__ = "Copyright 2021 Niccolo Rigacci <niccolo@rigacci.org>"
+__license__ = "GPLv3-or-later"
+__email__ = "niccolo@rigacci.org"
+__version__ = "0.2.0"
+
+# Camera settings to be changed, if not already set.
+SET_ITEMS = {
+    'LCD Off Time': '30 Seconds',
+    'Front Display': 'Off',
+    'Indicator lights': 'Off'
+}
+
+
+#--------------------------------------------------------------
+# Main program.
+#--------------------------------------------------------------
+logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s')
+# Choose logging level: NOTSET, DEBUG, INFO, WARNING, ERROR
+logging.getLogger().setLevel(logging.INFO)
+
+# Open the TCP socket and get the communication token.
+A.get_token()
+
+# Get camera info and print the most important ones.
+reply = A.get_message_reply(msg_id=A.AMBA_GET_DEVICEINFO)
+device_info = A.parse_device_info(reply)
+
+# Get current settings.
+reply = A.get_message_reply(msg_id=A.AMBA_GET_ALL_CURRENT_SETTINGS)
+camera_settings = A.parse_camera_settings(reply)
+
+# Get current camera_mode.
+camera_mode, p_type = A.get_param(msg_id=A.AMBA_GET_SETTING, msg_type='camera_mode')
+if p_type != 'camera_mode' or camera_mode is None:
+    A.api_error('GET MODE', 'Error getting camera mode')
+
+# Get power type and battery charge percentage.
+reply = A.get_message_reply(msg_id=A.AMBA_GET_BATTERY_LEVEL)
+if reply is None:
+    A.api_error('REPLY', 'Invalid reply for AMBA_GET_BATTERY_LEVEL')
+power_type = A.get_item('type', reply)
+battery_charge = A.get_item('param', reply, int)
+if power_type not in ('adapter', 'battery'):
+    A.api_error('POWER', 'Unknown power type: "%s"' % (power_type,))
+if battery_charge is not None:
+    A.print_big('Batt. %s%%' % (battery_charge,))
+
+# Get memory card total and free space.
+space_total = A.get_param(msg_id=A.AMBA_GET_SPACE, msg_type='total', var_type=float)[0]
+space_free = A.get_param(msg_id=A.AMBA_GET_SPACE, msg_type='free', var_type=float)[0]
+if space_free is None or space_total is None:
+    A.api_error('REPLY', 'Invalid reply for AMBA_GET_SPACE')
+else:
+    A.print_big('Card %0d%%' % ((1 - space_free / space_total) * 100,))
+
+# Set 'camera_clock' to system time.
+date_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+reply = A.set_param(msg_type='camera_clock', param=date_time)
+if reply is None:
+    A.api_error('CLOCK', 'Error setting camera clock')
+
+# Change some camera settings, if required.
+for key in SET_ITEMS:
+    if key not in camera_settings:
+        A.api_error('SET?', 'Item "%s" not found in camera settings' % (key,))
+        continue
+    val = SET_ITEMS[key]
+    if camera_settings[key] != val:
+        reply = A.set_param(msg_type=key, param=val)
+        if reply is None:
+            A.api_error('SET!', 'Error setting param for "%s"' % (key,))
+
+# Set 'camera_mode' to 'normal_record'.
+if camera_mode != 'normal_record':
+    A.socket_send(A.make_msg(msg_id=A.AMBA_SET_SETTING, msg_type='camera_mode', param='normal_record'))
+    reply, notify = A.reply_and_notify(msg_id=A.AMBA_SET_SETTING, msg_type='camera_mode', expected_notify='normal_record')
+    if reply is None or notify != 'normal_record':
+        A.api_error('MODE', 'Error setting camera mode to "normal_record"')
+
+# Start recording.
+A.socket_send(A.make_msg(msg_id=A.AMBA_RECORD_START))
+reply, notify = A.reply_and_notify(msg_id=A.AMBA_RECORD_START, expected_notify='start_normal_record')
+if reply is None or notify != 'start_normal_record':
+    A.api_error(err_id='NO REC', msg='Cannot start recording', is_fatal=True)
+
+# Close session.
+A.close_session()
+
+A.print_big('REC')

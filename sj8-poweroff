@@ -1,0 +1,40 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Communicate with a SJCAM SJ8PRO through the TCP JSON API.
+
+  * Power OFF the camera.
+
+"""
+
+import ambarella_api as A
+import logging
+
+__author__ = "Niccolo Rigacci"
+__copyright__ = "Copyright 2021 Niccolo Rigacci <niccolo@rigacci.org>"
+__license__ = "GPLv3-or-later"
+__email__ = "niccolo@rigacci.org"
+__version__ = "0.2.0"
+
+
+#--------------------------------------------------------------
+# Main program.
+#--------------------------------------------------------------
+logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s')
+# Choose logging level: NOTSET, DEBUG, INFO, WARNING, ERROR
+logging.getLogger().setLevel(logging.INFO)
+
+# Open the TCP socket and get the communication token.
+A.get_token()
+
+# Turn OFF the power of the camera.
+A.socket_send(A.make_msg(msg_id=A.AMBA_CAMERA_OFF, param='cam_off'))
+messages = A.socket_rcv_json()
+reply = A.find_reply(messages, msg_id=A.AMBA_CAMERA_OFF)
+if reply is None:
+    A.api_error('REPLY', 'Invalid reply for AMBA_CAMERA_OFF', is_fatal=True)
+
+# Close session.
+A.close_session()
+
+A.print_big('Pwr.OFF')

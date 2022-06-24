@@ -1,0 +1,4 @@
+#!/system/bin/sh
+
+python3 bin/sj8pro/sj8-white Sunny
+sleep 4

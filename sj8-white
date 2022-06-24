@@ -1,0 +1,59 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Communicate with a SJCAM SJ8PRO through the TCP JSON API.
+
+  * Get camera info and settings.
+  * Set the following settings:
+     'White Balance': 'Auto|Sunny|Cloudy'
+
+"""
+
+import ambarella_api as A
+import logging
+import sys
+
+__author__ = "Niccolo Rigacci"
+__copyright__ = "Copyright 2021 Niccolo Rigacci <niccolo@rigacci.org>"
+__license__ = "GPLv3-or-later"
+__email__ = "niccolo@rigacci.org"
+__version__ = "0.2.0"
+
+# Valid options.
+WHITE_BALANCE_OPTIONS = ['Auto', 'Sunny', 'Cloudy', 'Fluorescent', 'Underwater']
+
+# Camera settings to be changed.
+SET_ITEMS = {
+    'White Balance': 'Auto'
+}
+
+
+#--------------------------------------------------------------
+# Main program.
+#--------------------------------------------------------------
+# Get option from command line.
+white_balance = None
+if len(sys.argv) > 1:
+    white_balance = sys.argv[1]
+if white_balance not in WHITE_BALANCE_OPTIONS:
+    white_balance = WHITE_BALANCE_OPTIONS[0]
+SET_ITEMS['White Balance'] = white_balance
+
+logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s')
+# Choose logging level: NOTSET, DEBUG, INFO, WARNING, ERROR
+logging.getLogger().setLevel(logging.INFO)
+
+# Open the TCP socket and get the communication token.
+A.get_token()
+
+# Change some camera settings.
+for key in SET_ITEMS:
+    val = SET_ITEMS[key]
+    reply = A.set_param(msg_type=key, param=val)
+    if reply is None:
+        A.api_error('SET!', 'Error setting param for "%s"' % (key,))
+
+# Close session.
+A.close_session()
+
+A.print_big('WhiteB\n%s' % (white_balance,))

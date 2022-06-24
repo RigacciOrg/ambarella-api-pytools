@@ -1,0 +1,88 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Communicate with a SJCAM SJ8PRO through the TCP JSON API.
+
+  * Set all the settings in SET_ITEMS.
+
+"""
+
+import ambarella_api as A
+import datetime
+import logging
+
+__author__ = "Niccolo Rigacci"
+__copyright__ = "Copyright 2021 Niccolo Rigacci <niccolo@rigacci.org>"
+__license__ = "GPLv3-or-later"
+__email__ = "niccolo@rigacci.org"
+__version__ = "0.2.0"
+
+# Camera settings to be changed.
+#
+# The following are problematic settings: if the current value
+# is different, the camera reboots:
+#    'Resolution': '1080(1920x1080) 30FPS'
+#    'Gyro Stabilizer': 'On'
+#
+# The following causes always a reboot, even if already set to
+# the same value:
+#    'Encoding': 'H.264'
+SET_ITEMS = {
+    'Color Profile': 'SJCAM - Vivid',
+    'ISO': 'MAX 6400',
+    'EV': '+0.0',
+    'Metering Mode': 'Center',
+    'White Balance': 'Auto',
+    'Audio': 'On',
+    'Video Quality': 'Standard',
+    'Sharpness': 'Standard',
+    'Rotate': 'Off',
+    'Time Stamp': 'Off',
+    'Gyro Stabilizer': 'On',
+    'Distortion Correction': 'On',
+    'LCD Off Time': '30 Seconds',
+    'Front Display': 'Off',
+    'Indicator lights': 'Off'
+}
+
+
+#--------------------------------------------------------------
+# Main program.
+#--------------------------------------------------------------
+logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s')
+# Choose logging level: NOTSET, DEBUG, INFO, WARNING, ERROR
+logging.getLogger().setLevel(logging.INFO)
+
+# Open the TCP socket and get the communication token.
+A.get_token()
+
+# Set 'camera_clock' to system time.
+date_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+reply = A.set_param(msg_type='camera_clock', param=date_time)
+if reply is None:
+    A.api_error('CLOCK', 'Error setting camera clock')
+
+# Set 'camera_mode' to 'normal_record'.
+A.socket_send(A.make_msg(msg_id=A.AMBA_SET_SETTING, msg_type='camera_mode', param='normal_record'))
+reply, notify = A.reply_and_notify(msg_id=A.AMBA_SET_SETTING, msg_type='camera_mode', expected_notify='normal_record')
+if reply is None or notify != 'normal_record':
+    A.api_error('MODE', 'Error setting camera mode to "normal_record"')
+
+# Set 'Resolution' to '1080(1920x1080) 30FPS'.
+A.socket_send(A.make_msg(msg_id=A.AMBA_SET_SETTING, msg_type='Resolution', param='1080(1920x1080) 30FPS'))
+messages = A.socket_rcv_json()
+reply = A.find_reply(messages, msg_id=A.AMBA_SET_SETTING, msg_type='camera_mode')
+if reply is None:
+    A.api_error('SET.RES', 'Error setting camera video resolution')
+
+# Change some camera settings.
+for key in SET_ITEMS:
+    val = SET_ITEMS[key]
+    reply = A.set_param(msg_type=key, param=val)
+    if reply is None:
+        A.api_error(err_id='SET!', msg='Error setting param for "%s"' % (key,), is_fatal=True)
+
+# Close session.
+A.close_session()
+
+A.print_big('DEFLT\nOK')
