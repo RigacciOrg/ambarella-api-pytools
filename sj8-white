@@ -10,6 +10,7 @@ Communicate with a SJCAM SJ8PRO through the TCP JSON API.
 """
 
 import ambarella_api as A
+import datetime
 import logging
 import sys
 
@@ -17,7 +18,7 @@ __author__ = "Niccolo Rigacci"
 __copyright__ = "Copyright 2021 Niccolo Rigacci <niccolo@rigacci.org>"
 __license__ = "GPLv3-or-later"
 __email__ = "niccolo@rigacci.org"
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 # Valid options.
 WHITE_BALANCE_OPTIONS = ['Auto', 'Sunny', 'Cloudy', 'Fluorescent', 'Underwater']
@@ -45,6 +46,12 @@ logging.getLogger().setLevel(logging.INFO)
 
 # Open the TCP socket and get the communication token.
 A.get_token()
+
+# Set 'camera_clock' to system time.
+date_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+reply = A.set_param(msg_type='camera_clock', param=date_time)
+if reply is None:
+    A.api_error('CLOCK', 'Error setting camera clock')
 
 # Change some camera settings.
 for key in SET_ITEMS:
